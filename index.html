@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cricket Morse Code</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Courier Prime', monospace;
+            background: #0a0f0d;
+            color: #d1d5db;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        .cricket-glow {
+            filter: drop-shadow(0 0 15px rgba(34, 197, 94, 0.6));
+        }
+
+        .pulse {
+            animation: pulse-animation 0.2s ease-in-out;
+        }
+
+        @keyframes pulse-animation {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .forest-gradient {
+            background: radial-gradient(circle at center, #14211a 0%, #0a0f0d 100%);
+        }
+
+        .chirp-dot { width: 10px; height: 10px; background: #22c55e; border-radius: 50%; display: inline-block; margin: 0 3px; }
+        .chirp-dash { width: 20px; height: 10px; background: #22c55e; border-radius: 5px; display: inline-block; margin: 0 3px; }
+        
+        #guide.active {
+            display: grid !important;
+        }
+
+        .firefly {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #bef264;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #bef264;
+            pointer-events: none;
+            z-index: 10;
+            animation: drift var(--duration) linear infinite;
+        }
+
+        @keyframes drift {
+            from { transform: translate(var(--startX), var(--startY)); opacity: 0; }
+            50% { opacity: 1; }
+            to { transform: translate(var(--endX), var(--endY)); opacity: 0; }
+        }
+
+        .progress-segment {
+            height: 6px;
+            flex: 1;
+            background: #1a2e21;
+            border-radius: 3px;
+            transition: all 0.5s ease;
+        }
+        .progress-segment.active {
+            background: #22c55e;
+            box-shadow: 0 0 8px #22c55e;
+        }
+    </style>
+</head>
+<body class="forest-gradient min-h-screen flex flex-col items-center p-4">
+
+    <div id="firefly-container" class="fixed inset-0 pointer-events-none"></div>
+
+    <header class="text-center mt-4 mb-4">
+        <h1 class="text-3xl font-bold text-green-500 tracking-widest uppercase">Cricket Morse</h1>
+        <div class="flex justify-center gap-4 mt-2">
+            <button id="mode-words" class="text-[10px] px-3 py-1 rounded border border-green-500 bg-green-500 text-black font-bold">WORDS</button>
+            <button id="mode-numbers" class="text-[10px] px-3 py-1 rounded border border-green-500 text-green-500 hover:bg-green-500/20 font-bold">NUMBERS</button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-2xl bg-black/40 border border-green-900/30 rounded-2xl p-6 backdrop-blur-sm relative">
+        <div class="mb-6">
+            <div class="flex justify-between text-[10px] text-green-800 font-bold uppercase mb-2">
+                <span>Discovery Progress</span>
+                <span><span id="correct-count">0</span> / 5</span>
+            </div>
+            <div class="flex gap-2" id="progress-bar">
+                <div class="progress-segment"></div>
+                <div class="progress-segment"></div>
+                <div class="progress-segment"></div>
+                <div class="progress-segment"></div>
+                <div class="progress-segment"></div>
+            </div>
+        </div>
+
+        <div class="flex flex-col items-center justify-center py-4">
+            <div id="cricket-container" class="relative mb-4 transition-all duration-300">
+                <svg id="cricket-svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-green-500 cricket-glow">
+                    <path d="M12 2v2M5 12H3m18 0h-2M7.05 7.05L5.64 5.64M18.36 18.36l-1.41-1.41M16.95 7.05l1.41-1.41M5.64 18.36l1.41-1.41M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                    <path d="M8 21s1-3 4-3 4 3 4 3" />
+                </svg>
+            </div>
+
+            <div id="visualizer" class="h-12 flex flex-wrap items-center justify-center gap-1 mb-4">
+                <span class="text-green-900 italic text-sm">Tap "Listen" to begin...</span>
+            </div>
+
+            <button id="play-btn" class="bg-green-900/20 hover:bg-green-800/40 text-green-400 border border-green-700 px-8 py-3 rounded-full transition-all active:scale-95 mb-4">
+                Listen Again
+            </button>
+        </div>
+
+        <div class="space-y-4">
+            <input type="text" id="guess-input" placeholder="Enter translation..." autocomplete="off"
+                class="w-full bg-black/60 border-b-2 border-green-900 focus:border-green-500 outline-none p-3 text-center text-xl tracking-widest text-green-400 placeholder:text-green-900 transition-colors uppercase">
+            
+            <button id="submit-btn" class="w-full bg-green-600 hover:bg-green-500 text-black font-bold py-4 rounded-lg transition-all active:bg-green-400">
+                Interpret
+            </button>
+        </div>
+
+        <div id="feedback" class="mt-4 h-6 text-center text-xs font-bold uppercase"></div>
+    </main>
+
+    <!-- Full Alphabet and Numbers Guide -->
+    <section class="mt-6 w-full max-w-2xl pb-10">
+        <button id="toggle-guide-btn" class="w-full bg-green-900/10 text-green-600 text-[10px] uppercase tracking-widest py-3 border border-green-900/30 rounded-lg flex items-center justify-center gap-2 hover:bg-green-900/20 active:bg-green-900/30">
+            <span>Signal Guide (Full A-Z)</span>
+            <span id="guide-arrow">▼</span>
+        </button>
+        <div id="guide" class="hidden grid grid-cols-4 sm:grid-cols-6 gap-x-2 gap-y-3 text-[9px] text-green-700 font-bold bg-black/40 p-4 mt-2 rounded-xl border border-green-900/20 select-none">
+            <!-- Letters -->
+            <div>A •—</div><div>B —•••</div><div>C —•—•</div><div>D —••</div><div>E •</div><div>F ••—•</div>
+            <div>G ——•</div><div>H ••••</div><div>I ••</div><div>J •———</div><div>K —•—</div><div>L •—••</div>
+            <div>M ——</div><div>N —•</div><div>O ———</div><div>P •——•</div><div>Q ——•—</div><div>R •—•</div>
+            <div>S •••</div><div>T —</div><div>U ••—</div><div>V •••—</div><div>W •——</div><div>X —••—</div>
+            <div>Y —•——</div><div>Z ——••</div>
+            
+            <div class="col-span-full border-t border-green-900/40 my-1 pt-2 text-center text-[8px] opacity-50">NUMBERS</div>
+            
+            <!-- Numbers -->
+            <div>1 •————</div><div>2 ••———</div><div>3 •••——</div><div>4 ••••—</div><div>5 •••••</div><div>6 —••••</div>
+            <div>7 ——•••</div><div>8 ———••</div><div>9 ————•</div><div>0 —————</div>
+        </div>
+    </section>
+
+    <div id="modal" class="fixed inset-0 bg-black/90 hidden items-center justify-center p-4 z-50">
+        <div class="bg-[#0a0f0d] border border-green-500 p-8 rounded-2xl max-w-xs w-full text-center">
+            <h2 id="modal-title" class="text-2xl font-bold text-green-500 mb-4"></h2>
+            <p id="modal-text" class="text-green-700 mb-6"></p>
+            <button id="modal-close" class="w-full bg-green-600 text-black py-3 rounded-full font-bold active:bg-green-400">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        const MORSE_CODE = {
+            'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.',
+            'G': '--.', 'H': '....', 'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..',
+            'M': '--', 'N': '-.', 'O': '---', 'P': '.--.', 'Q': '--.-', 'R': '.-.',
+            'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
+            'Y': '-.--', 'Z': '--..',
+            '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....',
+            '6': '-....', '7': '--...', '8': '---..', '9': '----.', '0': '-----'
+        };
+
+        const MESSAGES = ["HELLO", "NIGHT", "QUIET", "FOREST", "GREEN", "MOON", "CRICKET", "STARS", "DARK", "GLOW"];
+        const NUMBERS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
+
+        let gameMode = 'words';
+        let currentMessage = "";
+        let isPlaying = false;
+        let correctCount = 0;
+        const targetCount = 5;
+
+        const cricketIcon = document.getElementById('cricket-svg');
+        const visualizer = document.getElementById('visualizer');
+        const guessInput = document.getElementById('guess-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const playBtn = document.getElementById('play-btn');
+        const feedback = document.getElementById('feedback');
+        const correctDisplay = document.getElementById('correct-count');
+        const progressBar = document.getElementById('progress-bar');
+        const modal = document.getElementById('modal');
+        const fireflyContainer = document.getElementById('firefly-container');
+        const guideDiv = document.getElementById('guide');
+        const guideArrow = document.getElementById('guide-arrow');
+
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        
+        function playChirp(duration) {
+            return new Promise(resolve => {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(3200, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(2800, audioCtx.currentTime + duration/1000);
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.01);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration/1000);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start();
+                cricketIcon.classList.add('pulse');
+                setTimeout(() => {
+                    oscillator.stop();
+                    cricketIcon.classList.remove('pulse');
+                    resolve();
+                }, duration);
+            });
+        }
+
+        async function playMessage() {
+            if (isPlaying) return;
+            initAudio();
+            isPlaying = true;
+            playBtn.disabled = true;
+            playBtn.style.opacity = "0.5";
+            visualizer.innerHTML = "";
+            
+            for (let i = 0; i < currentMessage.length; i++) {
+                const char = currentMessage[i];
+                const code = MORSE_CODE[char];
+                if (!code) continue;
+                for (let symbol of code) {
+                    const duration = symbol === '.' ? 110 : 350;
+                    const el = document.createElement('div');
+                    el.className = symbol === '.' ? 'chirp-dot' : 'chirp-dash';
+                    visualizer.appendChild(el);
+                    await playChirp(duration);
+                    await new Promise(r => setTimeout(r, 90)); 
+                }
+                const spacer = document.createElement('span');
+                spacer.className = 'w-4';
+                visualizer.appendChild(spacer);
+                await new Promise(r => setTimeout(r, 450)); 
+            }
+            isPlaying = false;
+            playBtn.disabled = false;
+            playBtn.style.opacity = "1";
+        }
+
+        function createFireflies(count = 25) {
+            for(let i=0; i<count; i++) {
+                const f = document.createElement('div');
+                f.className = 'firefly';
+                const startX = Math.random() * window.innerWidth;
+                const startY = window.innerHeight + 10;
+                const endX = startX + (Math.random() - 0.5) * 200;
+                const endY = -20;
+                const duration = 2 + Math.random() * 3;
+                f.style.setProperty('--startX', `${startX}px`);
+                f.style.setProperty('--startY', `${startY}px`);
+                f.style.setProperty('--endX', `${endX}px`);
+                f.style.setProperty('--endY', `${endY}px`);
+                f.style.setProperty('--duration', `${duration}s`);
+                fireflyContainer.appendChild(f);
+                setTimeout(() => f.remove(), duration * 1000);
+            }
+        }
+
+        function updateProgress() {
+            correctDisplay.innerText = correctCount;
+            const segments = progressBar.children;
+            for(let i=0; i < segments.length; i++) {
+                if (i < correctCount) {
+                    segments[i].classList.add('active');
+                } else {
+                    segments[i].classList.remove('active');
+                }
+            }
+        }
+
+        document.getElementById('toggle-guide-btn').addEventListener('click', () => {
+            const isHidden = guideDiv.classList.contains('hidden');
+            if (isHidden) {
+                guideDiv.classList.remove('hidden');
+                guideDiv.classList.add('active');
+                guideArrow.innerText = '▲';
+            } else {
+                guideDiv.classList.add('hidden');
+                guideDiv.classList.remove('active');
+                guideArrow.innerText = '▼';
+            }
+        });
+
+        document.getElementById('mode-words').addEventListener('click', function() {
+            gameMode = 'words';
+            this.classList.add('bg-green-500', 'text-black');
+            document.getElementById('mode-numbers').classList.remove('bg-green-500', 'text-black');
+            resetGame();
+        });
+
+        document.getElementById('mode-numbers').addEventListener('click', function() {
+            gameMode = 'numbers';
+            this.classList.add('bg-green-500', 'text-black');
+            document.getElementById('mode-words').classList.remove('bg-green-500', 'text-black');
+            resetGame();
+        });
+
+        function resetGame() {
+            correctCount = 0;
+            updateProgress();
+            setNewMessage();
+        }
+
+        function setNewMessage() {
+            currentMessage = gameMode === 'words' ? 
+                MESSAGES[Math.floor(Math.random() * MESSAGES.length)] : 
+                NUMBERS[Math.floor(Math.random() * NUMBERS.length)];
+            guessInput.value = "";
+            visualizer.innerHTML = '<span class="text-green-900 italic text-sm">Listening...</span>';
+        }
+
+        submitBtn.addEventListener('click', () => {
+            const guess = guessInput.value.trim().toUpperCase();
+            if (guess === "" || isPlaying) return;
+
+            if (guess === currentMessage) {
+                correctCount++;
+                updateProgress();
+                feedback.innerText = "Correct!";
+                feedback.style.color = "#4ade80";
+                
+                if (correctCount >= targetCount) {
+                    createFireflies(60);
+                    showModal("Forest Master!", "You have interpreted all 5 signals perfectly. The forest is finally at peace.");
+                    document.getElementById('modal-close').innerText = "Replay";
+                } else {
+                    showModal("Signal Received", `Correct: "${currentMessage}"`);
+                }
+            } else {
+                feedback.innerText = "Mismatch...";
+                feedback.style.color = "#991b1b";
+                guessInput.classList.add('border-red-900');
+                setTimeout(() => guessInput.classList.remove('border-red-900'), 500);
+            }
+        });
+
+        playBtn.addEventListener('click', playMessage);
+        
+        document.getElementById('modal-close').addEventListener('click', () => {
+            modal.style.display = 'none';
+            if (correctCount >= targetCount) {
+                resetGame();
+            } else {
+                setNewMessage();
+            }
+        });
+
+        window.onload = () => { setNewMessage(); };
+    </script>
+</body>
+</html>
